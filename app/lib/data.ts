@@ -22,7 +22,7 @@ export async function fetchRevenue() {
     console.log('Fetching revenue data...');
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    const data = await sql<Revenue>`SELECT * FROM revenue`;
+    const data = await sql<Revenue>`SELECT * FROM acme_revenue`;
 
     console.log('Data fetch completed after 3 seconds.');
 
@@ -37,10 +37,10 @@ export async function fetchLatestInvoices() {
   noStore();
   try {
     const data = await sql<LatestInvoiceRaw>`
-      SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
-      ORDER BY invoices.date DESC
+      SELECT acme_invoices.amount, acme_customers.name, acme_customers.image_url, acme_customers.email, acme_invoices.id
+      FROM acme_invoices
+      JOIN acme_customers ON acme_invoices.customer_id = acme_customers.id
+      ORDER BY acme_invoices.date DESC
       LIMIT 5`;
 
     const latestInvoices = data.rows.map((invoice) => ({
@@ -61,12 +61,12 @@ export async function fetchCardData() {
     // You can probably combine these into a single SQL query
     // However, we are intentionally splitting them to demonstrate
     // how to initialize multiple queries in parallel with JS.
-    const invoiceCountPromise = sql`SELECT COUNT(*) FROM invoices`;
-    const customerCountPromise = sql`SELECT COUNT(*) FROM customers`;
+    const invoiceCountPromise = sql`SELECT COUNT(*) FROM acme_invoices`;
+    const customerCountPromise = sql`SELECT COUNT(*) FROM acme_customers`;
     const invoiceStatusPromise = sql`SELECT
          SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS "paid",
          SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS "pending"
-         FROM invoices`;
+         FROM acme_invoices`;
 
     const data = await Promise.all([
       invoiceCountPromise,
@@ -91,7 +91,7 @@ export async function fetchCardData() {
   }
 }
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 10;
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
@@ -102,22 +102,22 @@ export async function fetchFilteredInvoices(
   try {
     const invoices = await sql<InvoicesTable>`
       SELECT
-        invoices.id,
-        invoices.amount,
-        invoices.date,
-        invoices.status,
-        customers.name,
-        customers.email,
-        customers.image_url
-      FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
+        acme_invoices.id,
+        acme_invoices.amount,
+        acme_invoices.date,
+        acme_invoices.status,
+        acme_customers.name,
+        acme_customers.email,
+        acme_customers.image_url
+      FROM acme_invoices
+      JOIN acme_customers ON acme_invoices.customer_id = acme_customers.id
       WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
-      ORDER BY invoices.date DESC
+        acme_customers.name ILIKE ${`%${query}%`} OR
+        acme_customers.email ILIKE ${`%${query}%`} OR
+        acme_invoices.amount::text ILIKE ${`%${query}%`} OR
+        acme_invoices.date::text ILIKE ${`%${query}%`} OR
+        acme_invoices.status ILIKE ${`%${query}%`}
+      ORDER BY acme_invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
     `;
 
@@ -132,14 +132,14 @@ export async function fetchInvoicesPages(query: string) {
   noStore();
   try {
     const count = await sql`SELECT COUNT(*)
-    FROM invoices
-    JOIN customers ON invoices.customer_id = customers.id
+    FROM acme_invoices
+    JOIN acme_customers ON acme_invoices.customer_id = acme_customers.id
     WHERE
-      customers.name ILIKE ${`%${query}%`} OR
-      customers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
+      acme_customers.name ILIKE ${`%${query}%`} OR
+      acme_customers.email ILIKE ${`%${query}%`} OR
+      acme_invoices.amount::text ILIKE ${`%${query}%`} OR
+      acme_invoices.date::text ILIKE ${`%${query}%`} OR
+      acme_invoices.status ILIKE ${`%${query}%`}
   `;
 
     const totalPages = Math.ceil(Number(count.rows[0].count) / ITEMS_PER_PAGE);
@@ -207,8 +207,8 @@ export async function fetchFilteredCustomers(query: string) {
 		  COUNT(invoices.id) AS total_invoices,
 		  SUM(CASE WHEN invoices.status = 'pending' THEN invoices.amount ELSE 0 END) AS total_pending,
 		  SUM(CASE WHEN invoices.status = 'paid' THEN invoices.amount ELSE 0 END) AS total_paid
-		FROM customers
-		LEFT JOIN invoices ON customers.id = invoices.customer_id
+		FROM acme_customers customers
+		LEFT JOIN acme_invoices ON customers.id = acme_invoices.customer_id
 		WHERE
 		  customers.name ILIKE ${`%${query}%`} OR
         customers.email ILIKE ${`%${query}%`}
@@ -232,7 +232,7 @@ export async function fetchFilteredCustomers(query: string) {
 export async function getUser(email: string) {
   noStore();
   try {
-    const user = await sql`SELECT * FROM users WHERE email=${email}`;
+    const user = await sql`SELECT * FROM acme_users WHERE email=${email}`;
     return user.rows[0] as User;
   } catch (error) {
     console.error('Failed to fetch user:', error);
